@@ -1,7 +1,7 @@
 import { definePluginSettings } from "@api/Settings";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByProps } from "@webpack";
-import { Toasts, FluxDispatcher } from "@webpack/common";
+import { FluxDispatcher } from "@webpack/common";
 
 const RunningGameStore = findByProps("getRunningGames");
 
@@ -95,31 +95,21 @@ async function updatePowerPlan(isGameRunning: boolean) {
         const error: string | null = await native.setPowerPlan(target);
 
         if (error === null) {
-            state.isBoosted = true;
-            Toasts.show({
-                title: "PowerSync",
-                content: "High performance mode ON 🚀",
-                type: Toasts.Type.SUCCESS
-            });
-            console.log("[PowerSync] Plan successfully applied:", target);
-        } else {
-            console.error("[PowerSync] setPowerPlan FAILED:", error);
-        }
+			state.isBoosted = true;
+			console.log("[PowerSync] Plan successfully applied:", target);
+		} else {
+			console.error("[PowerSync] setPowerPlan FAILED:", error);
+		}
 
     } else if (!isGameRunning && state.isBoosted) {
         if (settings.store.restorePrevious && state.originalPlan) {
             console.log("[PowerSync] Restoring plan:", state.originalPlan);
             const error: string | null = await native.setPowerPlan(state.originalPlan);
             if (error === null) {
-                Toasts.show({
-                    title: "PowerSync",
-                    content: "Normal mode restored 💤",
-                    type: Toasts.Type.MESSAGE
-                });
-                console.log("[PowerSync] Plan restored.");
-            } else {
-                console.error("[PowerSync] Failed to restore plan:", error);
-            }
+				console.log("[PowerSync] Plan restored.");
+				} else {
+				console.error("[PowerSync] Failed to restore plan:", error);
+			}
         } else {
             console.log("[PowerSync] restorePrevious is off, skipping restore.");
         }
@@ -145,8 +135,6 @@ function handleGamesChange(event: any) {
     const added: any[] = event?.added ?? [];
     const removed: any[] = event?.removed ?? [];
 
-    console.log("[PowerSync] Event: added", added.map(g => g.exeName), "removed", removed.map(g => g.exeName));
-
     for (const game of added) {
         if (!isBlacklisted(game)) {
             state.activeGames.add(game.id);
@@ -157,6 +145,12 @@ function handleGamesChange(event: any) {
     }
 
     for (const game of removed) {
+        // If we see a removal for a game we never tracked,
+        // it was already running when the plugin started — skip restore
+        if (!state.activeGames.has(game.id)) {
+            console.log("[PowerSync] Game was running before plugin started, skipping restore:", game.exeName);
+            continue;
+        }
         state.activeGames.delete(game.id);
         console.log("[PowerSync] Game removed:", game.exeName);
     }
@@ -176,15 +170,17 @@ export default definePlugin({
         state.activeGames.clear();
         FluxDispatcher.subscribe("RUNNING_GAMES_CHANGE", handleGamesChange);
 
-        // On plugin start the store is already up to date, read directly
-        const currentGames = RunningGameStore?.getRunningGames() ?? [];
-        console.log("[PowerSync] Games already running at start:", currentGames.length);
-        for (const game of currentGames) {
-            if (!isBlacklisted(game)) state.activeGames.add(game.id);
-        }
-        updatePowerPlan(state.activeGames.size > 0);
+        // Delay initial check to allow RunningGameStore to populate.
+        // On immediate call getRunningGames() returns empty even if a game is running.
+        setTimeout(() => {
+            const currentGames = RunningGameStore?.getRunningGames() ?? [];
+            console.log("[PowerSync] Games already running at start:", currentGames.length);
+            for (const game of currentGames) {
+                if (!isBlacklisted(game)) state.activeGames.add(game.id);
+            }
+            updatePowerPlan(state.activeGames.size > 0);
+        }, 1000);
     },
-
     stop() {
         FluxDispatcher.unsubscribe("RUNNING_GAMES_CHANGE", handleGamesChange);
         state.activeGames.clear();
