@@ -106,6 +106,5 @@ PowerSync subscribes to Discord's internal `RUNNING_GAMES_CHANGE` event, which f
 ## 🛡 License
 
 MIT — see [LICENSE](LICENSE) for details.
-```
 
 ---
