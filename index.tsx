@@ -168,7 +168,7 @@ function handleGamesChange(event: any) {
 export default definePlugin({
     name: "PowerSync",
     description: "Automatically switches Windows power plans when a game is detected.",
-    authors: [{ name: "UnClide", id: 1045353164621131776n }],
+    authors: [{ name: "unclide", id: "395504896817758210" }],
     settings,
 
     start() {
